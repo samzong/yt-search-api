@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [0.1.4] (2026-11-25)
+
+
+### Fixes
+
+* **cors:** update CORS origin configuration to use the configured value
+* **searchService:** update error message to reflect currently supported platforms
+* **release:** align SemVer and release checks (#3)
+
+
+### Documentation
+
+* **readme:** add DeepWiki badge to project overview section
+
+
+### Other changes
+
+* Update README.md
+
+
 ## [0.1.3] (2025-04-26)
 
 

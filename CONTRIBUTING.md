@@ -55,7 +55,6 @@ By contributing code, you agree that your contributions will be provided under t
 `package.json` is the version source. Release tags use `vX.Y.Z` or `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, and `vX.Y.Z-rc.N`.
 The release gate rejects leading zeroes, other suffixes, and tags that disagree with `package.json`.
 Published tags stay unchanged. The version in `package.json` at the historical `v0.1.3` tag is `0.1.0`.
-The current manifest uses `0.1.3` to match the latest published release.
 
 Use Yarn 1.22.22 and git-cliff 2.14.1 from the repository root:
 
