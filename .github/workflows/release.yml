@@ -3,77 +3,62 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
 
-# 添加默认权限配置
 permissions:
   contents: read
+
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    # 为create-release作业添加所需权限
     permissions:
       contents: write
-    outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
-      version: ${{ steps.get_version.outputs.version }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
-      - name: Get Version
-        id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-        
-      - name: Generate Simple Changelog
-        id: changelog
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          TAG_DATE=$(git log -1 --format=%ai $GITHUB_REF | cut -d' ' -f1)
-          
-          # Try to get previous tag
-          PREV_TAG=""
-          PREV_TAG=$(git describe --tags --abbrev=0 $GITHUB_REF^ 2>/dev/null || echo "")
-          
-          # Generate commit log
-          if [ -n "$PREV_TAG" ]; then
-            COMMIT_LOG=$(git log $PREV_TAG..$GITHUB_REF --pretty=format:"* %s (%h)" --no-merges)
-          else
-            COMMIT_LOG=$(git log $GITHUB_REF --pretty=format:"* %s (%h)" --no-merges)
-          fi
-          
-          # Format changelog and save to file
-          cat > changelog.md << EOF                    
-          ### Commit Log
-          
-          $COMMIT_LOG
-          
-          ### Docker Image
-          
-          \`\`\`bash
-          docker pull ghcr.io/${{ github.repository_owner }}/yt-search-api:$TAG_NAME
-          \`\`\`
-          
-          Supported architectures: linux/amd64, linux/arm64
-          EOF
-          
-          # Output changelog to GitHub Actions
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          cat changelog.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify SemVer tag and package.json
+        id: meta
+        run: bash scripts/check-release-tag.sh
+
+      - uses: actions/setup-node@v4
         with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref_name }}
-          body: ${{ steps.changelog.outputs.changelog }}
-          draft: false
-          prerelease: false 
+          node-version: '18'
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - run: yarn test --runInBand
+      - run: yarn build
+
+      - name: Find previous stable release
+        id: notes
+        run: |
+          previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' --exclude "$RELEASE_TAG")"
+          printf 'base=%s\n' "$(git rev-parse "$previous^{commit}")" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          version: v2.14.1
+          args: --ignore-tags=.* --tag ${{ env.RELEASE_TAG }} ${{ steps.notes.outputs.base }}..HEAD --strip all --output release-notes.md
+
+      - name: Verify CHANGELOG.md
+        run: node scripts/check-release-notes.cjs
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ steps.meta.outputs.is_prerelease }}
+        run: |
+          set -euo pipefail
+          args=(--verify-tag --title "$RELEASE_TAG" --notes-file release-notes.md)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease --latest=false)
+          else
+            args+=(--latest)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}"

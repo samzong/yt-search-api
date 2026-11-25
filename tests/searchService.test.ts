@@ -2,9 +2,13 @@ import searchService from '../src/services/searchService';
 import cacheService from '../src/services/cacheService';
 import * as youtubeApi from '../src/api/youtube';
 
-// Mock dependencies
-jest.mock('../src/api/youtube');
-jest.mock('../src/services/cacheService');
+jest.mock('../src/api/youtube', () => ({
+  searchYoutube: jest.fn(),
+}));
+jest.mock('../src/services/cacheService', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+}));
 
 describe('SearchService', () => {
   beforeEach(() => {
