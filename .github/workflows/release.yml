@@ -34,11 +34,17 @@ jobs:
       - run: yarn test --runInBand
       - run: yarn build
 
+      - name: Find previous stable release
+        id: notes
+        run: |
+          previous="$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' --exclude "$RELEASE_TAG")"
+          printf 'base=%s\n' "$(git rev-parse "$previous^{commit}")" >> "$GITHUB_OUTPUT"
+
       - name: Generate release notes
         uses: orhun/git-cliff-action@v4
         with:
           version: v2.14.1
-          args: --current --strip all --output release-notes.md
+          args: --ignore-tags=.* --tag ${{ env.RELEASE_TAG }} ${{ steps.notes.outputs.base }}..HEAD --strip all --output release-notes.md
 
       - name: Verify CHANGELOG.md
         run: node scripts/check-release-notes.cjs
